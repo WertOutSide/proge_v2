@@ -6,6 +6,56 @@ import pickle
 
 DEFAULT_FILE_NAME = "club_data.pkl"
 
+# ============================================================================
+# 0. ФУНКЦИИ ВАЛИДАЦИИ (НОВОЕ)
+# ============================================================================
+
+def validate_phone(phone: str) -> bool:
+    """Проверка номера телефона"""
+    if not phone:
+        return False
+    # Разрешаем цифры, +, скобки, дефисы и пробелы
+    pattern = r'^[\d\s\+\-\(\)]{10,20}$'
+    if not re.match(pattern, phone):
+        return False
+    # Проверяем, что цифр хотя бы 10
+    digits_only = re.sub(r'\D', '', phone)
+    return len(digits_only) >= 10
+
+def validate_nickname(nickname: str) -> bool:
+    """Проверка никнейма (латиница, цифры, _)"""
+    if not nickname:
+        return False
+    pattern = r'^[a-zA-Z0-9_]{3,20}$'
+    return bool(re.match(pattern, nickname))
+
+def validate_email(email: str) -> bool:
+    """Простая проверка email"""
+    if not email:
+        return True  # Пустой email допустим (необязательное поле)
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return bool(re.match(pattern, email))
+
+def validate_password(password: str) -> bool:
+    """Проверка пароля"""
+    if not password:
+        return False
+    return len(password) >= 6
+
+def validate_age(age_str: str) -> int:
+    """Проверка возраста"""
+    try:
+        age = int(age_str)
+        if 1 <= age <= 120:
+            return age
+    except ValueError:
+        pass
+    return 0
+
+# ============================================================================
+# КОНСТАНТЫ
+# ============================================================================
+
 CLUBS = {
     "1": {
         "name": "CyberArena Center",
@@ -31,7 +81,7 @@ TARIFFS = {
     "1": {
         "name": "Базовый",
         "desc": "Стандартное оборудование, нет допов",
-        "price": 250  
+        "price": 250
     },
     "2": {
         "name": "Геймер",
@@ -45,29 +95,26 @@ TARIFFS = {
     }
 }
 
-
 # ============================================================================
-# 1. КЛАССЫ ЭЛЕМЕНТОВ КАРТОТЕКИ (наследование: предок/потомки)
+# 1. КЛАССЫ ЭЛЕМЕНТОВ КАРТОТЕКИ
 # ============================================================================
 
 class Person:
     """Базовый класс - предок для всех пользователей"""
-    
     def __init__(self, name="", age=0):
         self.name = name
         self.age = age
         self.io_strategy = None
-    
+
     def set_io_strategy(self, strategy):
         self.io_strategy = strategy
-    
+
     def __str__(self):
         return f"{self.__class__.__name__}: {self.name}, возраст: {self.age}"
 
 
 class User(Person):
     """Класс пользователя - потомок Person"""
-    
     def __init__(self, nickname, password, name="", age=0):
         super().__init__(name, age)
         self.nickname = nickname
@@ -80,10 +127,10 @@ class User(Person):
             "about": ""
         }
         self.bookings = []
-    
+
     def __str__(self):
         return f"User: {self.nickname}, броней: {len(self.bookings)}"
-    
+
     def to_dict(self):
         return {
             "nickname": self.nickname,
@@ -91,7 +138,7 @@ class User(Person):
             "profile": self.profile,
             "bookings": self.bookings
         }
-    
+
     @staticmethod
     def from_dict(data):
         user = User(data['nickname'], data['password'])
@@ -106,23 +153,21 @@ class User(Person):
 
 class IOStrategy:
     """Базовый класс стратегии ввода/вывода"""
-    
     def read(self, obj, field_name):
         raise NotImplementedError
-    
+
     def write(self, obj, field_name, value):
         raise NotImplementedError
-    
+
     def save_container(self, container, path):
         raise NotImplementedError
-    
+
     def load_container(self, container, path):
         raise NotImplementedError
 
 
 class ConsoleIO(IOStrategy):
     """Стратегия ввода/вывода для работы с консолью"""
-    
     def read(self, obj, field_name):
         if hasattr(obj, field_name):
             value = input(f"Введите {field_name}: ").strip()
@@ -133,7 +178,7 @@ class ConsoleIO(IOStrategy):
         else:
             print(f"Поле {field_name} не найдено")
             return None
-    
+
     def write(self, obj, field_name, value):
         if hasattr(obj, field_name):
             setattr(obj, field_name, value)
@@ -144,24 +189,23 @@ class ConsoleIO(IOStrategy):
         else:
             print(f"Поле {field_name} не найдено")
             return False
-    
+
     def save_container(self, container, path):
         return container.save_to_pickle(path)
-    
+
     def load_container(self, container, path):
         return container.load_from_pickle(path)
 
 
 class PickleIO(IOStrategy):
     """Стратегия ввода/вывода для работы с хранилищем на основе pickle"""
-    
     def read(self, obj, field_name):
         if hasattr(obj, field_name):
             return getattr(obj, field_name)
         elif isinstance(obj, dict) and field_name in obj:
             return obj[field_name]
         return None
-    
+
     def write(self, obj, field_name, value):
         if hasattr(obj, field_name):
             setattr(obj, field_name, value)
@@ -170,10 +214,10 @@ class PickleIO(IOStrategy):
             obj[field_name] = value
             return True
         return False
-    
+
     def save_container(self, container, path):
         return container.save_to_pickle(path)
-    
+
     def load_container(self, container, path):
         return container.load_from_pickle(path)
 
@@ -184,7 +228,6 @@ class PickleIO(IOStrategy):
 
 class ClubApp:
     """Контейнерный класс для управления пользователями"""
-    
     def __init__(self):
         self.users = []
         self.current_user = None
@@ -192,10 +235,10 @@ class ClubApp:
         self.io_strategy = PickleIO()
         print("[СИСТЕМА] Запущена чистая сессия. Данные не загружены.")
         print("[СИСТЕМА] Используйте пункт 5 в ADMIN панели для загрузки данных из файла.")
-    
+
     def set_io_strategy(self, strategy):
         self.io_strategy = strategy
-    
+
     def get_file_path(self, prompt, default=None):
         if default:
             path = input(f"{prompt} (Enter для '{default}'): ").strip()
@@ -206,7 +249,7 @@ class ClubApp:
             if not path:
                 return None
         return path
-    
+
     def save_to_pickle(self, path):
         """Сохранение контейнера в файл pickle"""
         try:
@@ -220,35 +263,32 @@ class ClubApp:
         except Exception as e:
             print(f"[ОШИБКА] Не удалось сохранить: {e}")
             return False
-    
+
     def load_from_pickle(self, path):
         """Загрузка контейнера из файла pickle"""
         try:
             with open(path, 'rb') as f:
                 data = pickle.load(f)
-                self.users = [User.from_dict(u) for u in data.get("users", [])]
-                self.current_file_path = data.get("current_file_path", None)
+            self.users = [User.from_dict(u) for u in data.get("users", [])]
+            self.current_file_path = data.get("current_file_path", None)
             return True
         except Exception as e:
             print(f"[ОШИБКА] Не удалось загрузить: {e}")
             return False
-    
+
     def save_data(self, specific_path=None):
         if specific_path:
             file_path = specific_path
         else:
             default = self.current_file_path if self.current_file_path else DEFAULT_FILE_NAME
             file_path = self.get_file_path("Введите путь для сохранения файла", default)
-            
         if not file_path:
             print("[ОТМЕНА] Сохранение отменено.")
             return False
-
         try:
             dir_name = os.path.dirname(file_path)
             if dir_name and not os.path.exists(dir_name):
                 os.makedirs(dir_name)
-                
             if self.io_strategy.save_container(self, file_path):
                 print(f"[СИСТЕМА] Данные успешно сохранены в {file_path}")
                 print(f"[СИСТЕМА] Сохранено пользователей: {len(self.users)}")
@@ -264,15 +304,12 @@ class ClubApp:
         else:
             default = self.current_file_path if self.current_file_path else DEFAULT_FILE_NAME
             file_path = self.get_file_path("Введите путь для загрузки файла", default)
-
         if not file_path:
             print("[ОТМЕНА] Загрузка отменена.")
             return False
-
         if not os.path.exists(file_path):
             print(f"[СИСТЕМА] Файл {file_path} не найден.")
             return False
-        
         if self.io_strategy.load_container(self, file_path):
             print(f"[СИСТЕМА] Данные успешно загружены из {file_path}")
             print(f"[СИСТЕМА] Загружено пользователей: {len(self.users)}")
@@ -299,13 +336,10 @@ class ClubApp:
         if not self.users:
             print("[СИСТЕМА] Список пользователей пуст. Обратитесь к администратору.")
             return False
-        
         print("\n=== ВХОД В СИСТЕМУ ===")
         nick = input("Введите никнейм: ").strip()
         pwd = input("Введите пароль: ").strip()
-        
         user = self.authenticate(nick, pwd)
-        
         if user:
             self.current_user = user
             print(f"[УСПЕХ] Вход выполнен как {self.current_user.nickname}")
@@ -317,7 +351,6 @@ class ClubApp:
             return False
 
     # --- МЕНЮ АДМИНА ---
-
     def admin_menu(self):
         while True:
             print("\n=== ADMIN PANEL ===")
@@ -331,9 +364,7 @@ class ClubApp:
             print("6. Загрузить данные из файла (указать путь)")
             print("7. Показать список пользователей")
             print("0. Выход из программы")
-            
             choice = input("Выбор: ")
-            
             if choice == '1':
                 self.create_user()
             elif choice == '2':
@@ -366,14 +397,25 @@ class ClubApp:
             print(f"{i+1}. Ник: {u.nickname} | Броней: {len(u.bookings)}")
 
     def create_user(self):
-        nick = input("Введите никнейм: ").strip()
-        if not nick:
-            print("Никнейм не может быть пустым.")
-            return
-        if any(u.nickname == nick for u in self.users):
-            print("Пользователь с таким ником уже существует.")
-            return
-        pwd = input("Введите пароль: ").strip()
+        # Валидация никнейма
+        while True:
+            nick = input("Введите никнейм (3-20 символов, латиница): ").strip()
+            if validate_nickname(nick):
+                if any(u.nickname == nick for u in self.users):
+                    print("Пользователь с таким ником уже существует.")
+                    continue
+                break
+            else:
+                print("Ошибка: Ник должен содержать 3-20 символов (a-z, A-Z, 0-9, _).")
+        
+        # Валидация пароля
+        while True:
+            pwd = input("Введите пароль (минимум 6 символов): ").strip()
+            if validate_password(pwd):
+                break
+            else:
+                print("Ошибка: Пароль должен быть не менее 6 символов.")
+
         new_user = User(nick, pwd)
         new_user.set_io_strategy(self.io_strategy)
         self.users.append(new_user)
@@ -411,7 +453,6 @@ class ClubApp:
             print("Введите число.")
 
     # --- МЕНЮ ПОЛЬЗОВАТЕЛЯ ---
-
     def user_menu(self):
         while True:
             print(f"\n=== КАБИНЕТ: {self.current_user.nickname} ===")
@@ -420,9 +461,7 @@ class ClubApp:
             print("3. Забронировать мероприятие")
             print("4. Мои заявки и брони (управление)")
             print("0. Выйти в ADMIN панель")
-            
             choice = input("Выбор: ")
-            
             if choice == '1':
                 self.edit_profile()
             elif choice == '2':
@@ -447,32 +486,61 @@ class ClubApp:
         print(f"5. Любимые игры: {u.profile['fav_games']}")
         print(f"6. О себе: {u.profile['about']}")
         print("0. Назад")
-        
         sub = input("Что меняем? ")
         if sub == '1':
             u.profile['photo'] = input("Новое фото: ")
         elif sub == '2':
-            new_nick = input("Новый ник: ")
-            if new_nick: u.nickname = new_nick
+            while True:
+                new_nick = input("Новый ник: ").strip()
+                if not new_nick:
+                    print("Отменено.")
+                    break
+                if validate_nickname(new_nick):
+                    # Проверка на уникальность
+                    if any(user.nickname == new_nick for user in self.users if user != u):
+                        print("Этот ник уже занят другим пользователем.")
+                        continue
+                    u.nickname = new_nick
+                    print("Никнейм обновлен.")
+                    break
+                else:
+                    print("Ошибка: Ник должен содержать 3-20 символов (a-z, A-Z, 0-9, _).")
         elif sub == '3':
-            u.profile['email'] = input("Новая почта: ")
+            while True:
+                new_email = input("Новая почта: ").strip()
+                if not new_email:
+                    print("Отменено.")
+                    break
+                if validate_email(new_email):
+                    u.profile['email'] = new_email
+                    print("Почта обновлена.")
+                    break
+                else:
+                    print("Ошибка: Неверный формат email.")
         elif sub == '4':
-            u.profile['phone'] = input("Новый телефон: ")
+            while True:
+                new_phone = input("Новый телефон: ").strip()
+                if not new_phone:
+                    print("Отменено.")
+                    break
+                if validate_phone(new_phone):
+                    u.profile['phone'] = new_phone
+                    print("Телефон обновлен.")
+                    break
+                else:
+                    print("Ошибка: Введите корректный номер (минимум 10 цифр).")
         elif sub == '5':
             u.profile['fav_games'] = input("Любимые игры: ")
         elif sub == '6':
             u.profile['about'] = input("О себе: ")
-        
         print("Профиль обновлен в сессии.")
 
     # --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ВЫБОРА ---
-
     def select_club_interactive(self):
         print("\n--- Доступные клубы ---")
         for k, v in CLUBS.items():
             print(f"{k}. {v['name']} ({v['specs']})")
             print(f"   Адрес: {v['address']} | Допы: {v['features']}")
-        
         choice = input("Выберите клуб (номер): ")
         if choice in CLUBS:
             return CLUBS[choice]
@@ -485,7 +553,6 @@ class ClubApp:
         for k, v in TARIFFS.items():
             print(f"{k}. {v['name']} - {v['price']}р/ч")
             print(f"   {v['desc']}")
-        
         choice = input("Выберите тариф (номер): ")
         if choice in TARIFFS:
             return TARIFFS[choice]
@@ -495,11 +562,10 @@ class ClubApp:
 
     def get_booking_params(self):
         while True:
-            date_time = input("Дата и время (ДД.ММ.ГГГГ ЧЧ:ММ, например 25.12.2024 18:00): ")
+            date_time = input("Дата и время (ДД.ММ.ГГГГ ЧЧ:ММ, например 25.03.2026 18:00): ")
             if self.parse_russian_date(date_time):
                 break
             print("Неверный формат! Используйте ДД.ММ.ГГГГ ЧЧ:ММ")
-            
         while True:
             duration = input("Продолжительность брони (часов): ")
             try:
@@ -509,30 +575,31 @@ class ClubApp:
                 print("Продолжительность должна быть больше 0")
             except ValueError:
                 print("Введите число")
-            
-        phone = input(f"Телефон (по умолчанию {self.current_user.profile['phone']}): ")
-        if not phone:
-            phone = self.current_user.profile['phone']
-            
+        
+        # Валидация телефона при бронировании
+        while True:
+            phone = input(f"Телефон (по умолчанию {self.current_user.profile['phone']}): ").strip()
+            if not phone:
+                phone = self.current_user.profile['phone']
+                break
+            if validate_phone(phone):
+                break
+            else:
+                print("Ошибка: Введите корректный номер телефона.")
+        
         wishes = input("Пожелания: ")
         return date_time, phone, wishes, duration
 
     # --- БРОНИРОВАНИЕ ---
-
     def book_spot(self):
         print(f"\n=== БРОНИРОВАНИЕ МЕСТА ===")
-        
         selected_club = self.select_club_interactive()
         selected_tariff = self.select_tariff_interactive()
-        
         print(f"\nПодтверждение параметров:")
         print(f"Клуб: {selected_club['name']}")
         print(f"Тариф: {selected_tariff['name']} ({selected_tariff['price']}р/ч)")
-        
         date_time, phone, wishes, duration = self.get_booking_params()
-        
         total_price = selected_tariff['price'] * duration
-        
         booking = {
             "type": "spot",
             "club": selected_club['name'],
@@ -545,7 +612,6 @@ class ClubApp:
             "wishes": wishes,
             "id": len(self.current_user.bookings) + 1
         }
-        
         self.current_user.bookings.append(booking)
         print(f"\nБронь места создана!")
         print(f"Продолжительность: {duration} ч.")
@@ -553,17 +619,13 @@ class ClubApp:
 
     def book_event(self):
         print(f"\n=== БРОНИРОВАНИЕ МЕРОПРИЯТИЯ ===")
-        
         selected_club = self.select_club_interactive()
-        
         print(f"\nПодтверждение параметров:")
         print(f"Клуб: {selected_club['name']}")
-        
         event_type = input("Тип мероприятия (День рождения, Турнир...): ")
         guests = input("Количество гостей: ")
         organizer = input("Имя заказчика: ")
         date_time, phone, wishes, duration = self.get_booking_params()
-        
         booking = {
             "type": "event",
             "club": selected_club['name'],
@@ -576,18 +638,15 @@ class ClubApp:
             "wishes": wishes,
             "id": len(self.current_user.bookings) + 1
         }
-        
         self.current_user.bookings.append(booking)
         print(f"\nЗаявка на мероприятие создана!")
         print(f"Продолжительность: {duration} ч.")
 
     # --- УПРАВЛЕНИЕ БРОНЯМИ ---
-
     def manage_bookings(self):
         if not self.current_user.bookings:
             print("У вас нет активных броней.")
             return
-            
         print("\n--- Ваши заявки и брони ---")
         for i, b in enumerate(self.current_user.bookings):
             status = "Место" if b['type'] == 'spot' else "Мероприятие"
@@ -599,12 +658,10 @@ class ClubApp:
                 print(f"   Тип: {b['event_type']}, Гостей: {b['guests']}")
             print(f"   Телефон: {b['phone']} | Пожелания: {b['wishes']}")
             print("-" * 30)
-            
         print("1. Изменить бронь")
         print("2. Удалить бронь")
         print("0. Назад")
         action = input("Действие: ")
-        
         if action == '1':
             self.edit_booking()
         elif action == '2':
@@ -616,14 +673,12 @@ class ClubApp:
             if 0 <= idx < len(self.current_user.bookings):
                 b = self.current_user.bookings[idx]
                 print("Оставьте поле пустым, чтобы не менять.")
-                
                 new_date = input(f"Дата ({b['date_time']}): ")
                 if new_date:
                     if self.parse_russian_date(new_date):
                         b['date_time'] = new_date
                     else:
                         print("Неверный формат даты, оставлено старое значение.")
-                
                 new_duration = input(f"Продолжительность ({b['duration']} ч.): ")
                 if new_duration:
                     try:
@@ -636,16 +691,19 @@ class ClubApp:
                     except ValueError:
                         print("Неверное значение, оставлено старое.")
                 
-                new_phone = input(f"Телефон ({b['phone']}): ")
-                if new_phone: b['phone'] = new_phone
+                # Валидация телефона при редактировании
+                new_phone = input(f"Телефон ({b['phone']}): ").strip()
+                if new_phone:
+                    if validate_phone(new_phone):
+                        b['phone'] = new_phone
+                    else:
+                        print("Ошибка: Неверный формат телефона, оставлено старое значение.")
                 
                 new_wishes = input(f"Пожелания ({b['wishes']}): ")
                 if new_wishes: b['wishes'] = new_wishes
-                
                 if b['type'] == 'event':
                     new_guests = input(f"Гостей ({b['guests']}): ")
                     if new_guests: b['guests'] = new_guests
-                    
                 print("Бронь обновлена в сессии.")
             else:
                 print("Неверный номер.")
@@ -670,10 +728,8 @@ class ClubApp:
 
 def main():
     """Главная функция, выводящая и обрабатывающая текстовое меню"""
-    
     if os.name == 'nt':
         os.system('chcp 65001 > nul')
-        
     app = ClubApp()
     app.admin_menu()
 
