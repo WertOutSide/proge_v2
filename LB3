@@ -1,0 +1,113 @@
+#include <iostream>
+#include <cstring>
+#include <cstdlib>
+#include <cstdio>
+#include <fstream>
+#include <string>
+
+using namespace std;
+
+
+void copyUsername(const char* input) {
+    char username[32];
+    strcpy(username, input);
+    cout << "Username: " << username << endl;
+}
+
+
+void logMessage(const char* userMessage) {
+    printf(userMessage);
+    printf("\n");
+}
+
+void readFile(const char* filename) {
+    char command[256];
+    sprintf(command, "cat %s", filename);
+    system(command);
+}
+
+void findUser(const char* username) {
+    char query[512];
+    sprintf(query, "SELECT * FROM users WHERE name = '%s'", username);
+    cout << "Executing: " << query << endl;
+}
+
+void loadConfig(const char* configName) {
+    string path = "/etc/app/configs/";
+    path += configName;
+    
+    ifstream file(path);
+    if (file.is_open()) {
+        cout << "Config loaded from: " << path << endl;
+    }
+}
+
+void encryptData(char* data, int len) {
+    for (int i = 0; i < len; i++) {
+        data[i] = data[i] ^ 0x42;
+    }
+    cout << "Data encrypted" << endl;
+}
+void readInput() {
+    char buffer[100];
+    gets(buffer);
+    cout << "Input: " << buffer << endl;
+}
+
+void processData() {
+    int* data = new int[10];
+    delete[] data;
+    data[0] = 42;
+    cout << "Data processed" << endl;
+}
+
+void buildPath(const char* dir, const char* file) {
+    char path[64];
+    sprintf(path, "%s/%s", dir, file);
+    cout << "Path: " << path << endl;
+}
+
+void executeCommand(const char* cmd) {
+    FILE* pipe = popen(cmd, "r");
+    if (pipe) {
+        char result[128];
+        while (fgets(result, sizeof(result), pipe) != NULL) {
+            cout << result;
+        }
+        pclose(pipe);
+    }
+}
+
+void parsePort(const char* portStr) {
+    int port = atoi(portStr);
+    cout << "Connecting to port: " << port << endl;
+}
+
+void allocateBuffer() {
+    char* buffer = new char[1024];
+    strcpy(buffer, "Temporary data");
+    cout << "Buffer allocated: " << buffer << endl;
+}
+
+int main() {
+    cout << "=== Lab 3: Vulnerability Pattern Detection ===" << endl << endl;
+    
+    copyUsername("admin");
+    logMessage("Test message");
+    readFile("test.txt");
+    findUser("admin");
+    loadConfig("settings.conf");
+    
+    char data[] = "secret";
+    encryptData(data, strlen(data));
+    
+    readInput();
+    processData();
+    buildPath("/home/user", "document.txt");
+    executeCommand("ls -la");
+    parsePort("8080");
+    allocateBuffer();
+    
+    cout << endl << "=== Analysis Complete ===" << endl;
+    return 0;
+}
